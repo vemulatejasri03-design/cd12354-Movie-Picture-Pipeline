@@ -6,7 +6,12 @@ on:
       - main
     paths:
       - "starter/frontend/**"
+      - ".github/workflows/frontend-cd.yml"
   workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
 
 jobs:
   lint:
@@ -70,7 +75,8 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -101,13 +107,20 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
 
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
-            --region ${{ secrets.AWS_REGION }} \
-            --name ${{ secrets.EKS_CLUSTER_NAME }}
+            --region "$AWS_REGION" \
+            --name "$EKS_CLUSTER_NAME"
 
       - name: Update Kubernetes image
         working-directory: starter/frontend/k8s
@@ -118,3 +131,13 @@ jobs:
         working-directory: starter/frontend/k8s
         run: |
           kustomize build | kubectl apply -f -
+
+      - name: Check deployment
+        working-directory: starter/frontend/k8s
+        run: |
+          kubectl rollout status deployment/frontend --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          kubectl get deployment frontend
+          kubectl get pods
