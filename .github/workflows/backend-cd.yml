@@ -8,9 +8,6 @@ on:
       - "starter/backend/**"
   workflow_dispatch:
 
-env:
-  AWS_REGION: us-east-1
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -75,7 +72,8 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -105,20 +103,16 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
-            --region ${{ env.AWS_REGION }} \
+            --region ${{ secrets.AWS_REGION }} \
             --name ${{ secrets.EKS_CLUSTER_NAME }}
 
       - name: Update Kubernetes image
         working-directory: starter/backend/k8s
         run: |
-          kustomize edit set image backend=${{ secrets.ECR_REGISTRY }}/backend:${{ github.sha }}
-
-      - name: Deploy to Kubernetes
-        working-directory: starter/backend/k8s
-        run: |
-          kustomize build | kubectl apply -f -
+          kustomize edit set image backend=${{ secrets.ECR_REGISTRY }}/
